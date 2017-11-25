@@ -21,12 +21,19 @@ func main() {
 	//step1 := step.New("step1", newSqsReceive(os.Getenv("SQS_URL")))
 	step2 := step.New("step2", newDelay())
 	step3 := step.New("step3", newLog("step3"))
+	step4 := step.New("step4", newErr())
+	step5 := step.New("step5", newLogErr())
+
 	step1.ConnectTo(step2)
 	step2.ConnectTo(step3)
+	step3.ConnectTo(step4)
+	step4.ErrorTo(step5)
 
 	step1.Start()
 	step2.Start()
 	step3.Start()
+	step4.Start()
+	step5.Start()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -50,6 +57,20 @@ func newDelay() step.F {
 func newLog(id string) step.F {
 	return func(in interface{}) (interface{}, error) {
 		log.WithField("stepId", id).WithField("in", in).Debug("received input value")
+		return nil, nil
+	}
+}
+
+func newErr() step.F {
+	return func(in interface{}) (interface{}, error) {
+		log.Debug("HERE")
+		return nil, fmt.Errorf("error from step")
+	}
+}
+
+func newLogErr() step.F {
+	return func(in interface{}) (interface{}, error) {
+		log.WithField("in", in).Error("Received item to be handled as a failure")
 		return nil, nil
 	}
 }

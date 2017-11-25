@@ -25,6 +25,7 @@ type step struct {
 	fn  F
 	in  C
 	out C
+	err C
 }
 
 func (s step) Start() {
@@ -39,14 +40,17 @@ func (s step) Start() {
 				log.WithField("id", s.id).WithField("input", inData).Debug("Received input")
 			}
 
-			log.WithField("id", s.id).WithField("input", inData).Debug("Handling input")
+			//log.WithField("id", s.id).WithField("input", inData).Debug("Handling input")
 			outData, err := s.fn(inData)
 			if err != nil {
-				log.WithError(err).Error("error while executing step")
+				log.WithError(err).Debug("Error while executing step. Sending to the err channel for the step.")
+				if s.err != nil {
+					s.err <- inData
+				}
 				continue
 			}
 
-			log.WithField("id", s.id).WithField("output", outData).Debug("Will be sending output data")
+			//log.WithField("id", s.id).WithField("output", outData).Debug("Will be sending output data")
 			if s.out != nil && outData != nil {
 				log.WithField("id", s.id).WithField("output", outData).Debug("Sending output data")
 				s.out <- outData
@@ -58,9 +62,24 @@ func (s step) Start() {
 }
 
 func (s *step) ConnectTo(other Step) {
-	s.out = make(C)
 	os := other.(*step)
-	os.in = s.out
+
+	if os.in == nil {
+		os.in = make(C)
+	}
+
+	s.out = os.in
+}
+
+func (s *step) ErrorTo(other Step) {
+	log.Debugf("Will send errors from %v to %v", s.id, other.(*step).id)
+	os := other.(*step)
+
+	if os.in == nil {
+		os.in = make(C)
+	}
+
+	s.err = os.in
 }
 
 // New creates a new activity step identifies by id.
